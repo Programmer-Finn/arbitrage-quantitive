@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>量化套利策略 | 资金费率 · 价差 · 网格套利</title>
+    <!-- 使用Font Awesome 6 (免费图标库) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(145deg, #f0f5fb 0%, #e9f0f8 100%);
+            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            color: #1a2c3e;
+            line-height: 1.5;
+            padding: 2rem 1.5rem;
+        }
+
+        /* 模拟渐变背景装饰 */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at 10% 20%, rgba(46, 125, 195, 0.03) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: -2;
+        }
+
+        .container {
+            max-width: 1280px;
+            margin: 0 auto;
+        }
+
+        /* 头部区域 */
+        .hero {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .hero h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #1E3C72, #2A5298);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.75rem;
+            display: inline-block;
+        }
+
+        .hero .badge {
+            display: inline-block;
+            background: rgba(42, 82, 152, 0.12);
+            backdrop-filter: blur(2px);
+            padding: 0.3rem 1rem;
+            border-radius: 40px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: #1e4a76;
+            margin-bottom: 1rem;
+        }
+
+        .hero p {
+            font-size: 1.2rem;
+            color: #2c3e50;
+            max-width: 720px;
+            margin: 0 auto;
+            font-weight: 400;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+            display: inline-block;
+            padding-bottom: 0.25rem;
+        }
+
+        .subhead {
+            color: #4a627a;
+            margin-top: 0.5rem;
+            font-size: 1rem;
+        }
+
+        /* 卡片网格 */
+        .strategies-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 2rem;
+            margin: 3rem 0 2rem;
+        }
+
+        /* 卡片样式 */
+        .card {
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(0px);
+            border-radius: 2rem;
+            box-shadow: 0 20px 35px -12px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0,0,0,0.02);
+            transition: all 0.3s cubic-bezier(0.2, 0, 0, 1);
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.6);
+        }
+
+        .card:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 28px 40px -16px rgba(0, 0, 0, 0.18);
+            background: rgba(255, 255, 255, 0.98);
+            border-color: rgba(64, 128, 255, 0.2);
+        }
+
+        .card-header {
+            padding: 1.8rem 1.8rem 0.8rem 1.8rem;
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            border-bottom: 2px solid rgba(0,0,0,0.04);
+        }
+
+        .card-icon {
+            width: 54px;
+            height: 54px;
+            background: rgba(52, 102, 153, 0.1);
+            border-radius: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+        }
+
+        .card-icon i {
+            font-size: 2rem;
+        }
+
+        .card-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+            margin: 0;
+            line-height: 1.2;
+        }
+
+        .card-sub {
+            font-size: 0.85rem;
+            font-weight: 500;
+            opacity: 0.7;
+            margin-top: 4px;
+        }
+
+        .card-content {
+            padding: 1.4rem 1.8rem 1.8rem 1.8rem;
+        }
+
+        .desc {
+            font-size: 1rem;
+            color: #1f2f3f;
+            margin-bottom: 1.5rem;
+            font-weight: 500;
+            border-left: 3px solid;
+            padding-left: 1rem;
+        }
+
+        .feature-list {
+            list-style: none;
+            margin-bottom: 1.5rem;
+        }
+
+        .feature-list li {
+            margin-bottom: 0.8rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.7rem;
+            font-size: 0.92rem;
+            color: #2c3f55;
+        }
+
+        .feature-list li i {
+            width: 1.4rem;
+            margin-top: 0.1rem;
+            font-size: 0.9rem;
+            color: #2a6b9e;
+        }
+
+        .risk-note {
+            background: #fef7e0;
+            border-radius: 1.2rem;
+            padding: 0.9rem 1rem;
+            margin-top: 1.2rem;
+            font-size: 0.85rem;
+            border-left: 4px solid #e6b422;
+            color: #5a4a1e;
+        }
+
+        .risk-note i {
+            margin-right: 8px;
+            color: #e6a017;
+        }
+
+        .tag {
+            display: inline-block;
+            background: #edf2f7;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            padding: 0.2rem 0.7rem;
+            font-weight: 600;
+            color: #2c5282;
+            margin-right: 0.5rem;
+            margin-bottom: 0.3rem;
+        }
+
+        .formula {
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            background: #f3f6fc;
+            padding: 0.5rem 0.7rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            color: #004070;
+            margin: 1rem 0 0.5rem;
+            display: inline-block;
+        }
+
+        /* 不同卡片装饰色 */
+        .card-1 .card-icon { background: #e0f2fe; color: #0369a1; }
+        .card-1 .desc { border-left-color: #0e7cae; }
+        .card-1 .card-title { color: #0c4a6e; }
+
+        .card-2 .card-icon { background: #e6f7ec; color: #15803d; }
+        .card-2 .desc { border-left-color: #2b9348; }
+        .card-2 .card-title { color: #14532d; }
+
+        .card-3 .card-icon { background: #fff1e0; color: #b45309; }
+        .card-3 .desc { border-left-color: #d97706; }
+        .card-3 .card-title { color: #92400e; }
+
+        footer {
+            text-align: center;
+            margin-top: 3.5rem;
+            padding-top: 2rem;
+            border-top: 1px solid rgba(0, 0, 0, 0.08);
+            font-size: 0.85rem;
+            color: #4b6584;
+        }
+
+        footer a {
+            color: #2c6280;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        .github-corner {
+            transition: all 0.2s;
+        }
+
+        @media (max-width: 700px) {
+            body {
+                padding: 1.2rem;
+            }
+            .hero h1 {
+                font-size: 1.9rem;
+            }
+            .card-header {
+                padding: 1.2rem 1.2rem 0.5rem 1.2rem;
+            }
+            .card-content {
+                padding: 1rem 1.2rem 1.5rem;
+            }
+            .card-title {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="hero">
+        <div class="badge">
+            <i class="fas fa-chart-line" style="margin-right: 6px;"></i> 量化交易 · 套利核心
+        </div>
+        <h1>
+            量化套利策略集
+        </h1>
+        <p>资金费率套利 · 价差套利 · 网格套利</p>
+        <div class="subhead">
+            <i class="fas fa-robot"></i> 程序化执行 · 低延迟风控 · 多策略组合
+        </div>
+    </div>
+
+    <div class="strategies-grid">
+        <!-- 1. 资金费率套利量化 -->
+        <div class="card card-1">
+            <div class="card-header">
+                <div class="card-icon">
+                    <i class="fas fa-coins"></i>
+                </div>
+                <div>
+                    <div class="card-title">资金费率套利</div>
+                    <div class="card-sub">Funding Rate Arbitrage</div>
+                </div>
+            </div>
+            <div class="card-content">
+                <div class="desc">
+                    永续合约与现货对冲，赚取「资金费率」收益，保持市场中性。
+                </div>
+                <ul class="feature-list">
+                    <li><i class="fas fa-balance-scale"></i> <strong>核心原理</strong> : 做多现货 + 做空永续合约（或反向），当资金费率为正时持续收取多头付给空头的费用，风险暴露趋近于零。</li>
+                    <li><i class="fas fa-chart-simple"></i> <strong>收益来源</strong> : 每8小时结算的资金费率，年化可达15%–50%+ (取决于市场热度)。</li>
+                    <li><i class="fas fa-calculator"></i> <strong>量化关键</strong> : 自动监控费率和基差，动态调整仓位；同时管理保证金与爆仓风险。</li>
+                </ul>
+                <div class="formula">
+                    <i class="fas fa-dollar-sign"></i> 单期收益 = 名义仓位 × 资金费率（正）
+                </div>
+                <div class="risk-note">
+                    <i class="fas fa-exclamation-triangle"></i> <strong>风险提示</strong> ：极端行情下基差扩大、资金费率剧烈反转，需动态对冲并预留保证金，同时注意交易所风控规则。
+                </div>
+                <div>
+                    <span class="tag"><i class="far fa-clock"></i> 低延迟自动调仓</span>
+                    <span class="tag"><i class="fas fa-chart-line"></i> 中性策略</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. 价差套利量化 -->
+        <div class="card card-2">
+            <div class="card-header">
+                <div class="card-icon">
+                    <i class="fas fa-arrows-spin"></i>
+                </div>
+                <div>
+                    <div class="card-title">价差套利量化</div>
+                    <div class="card-sub">Spread Arbitrage</div>
+                </div>
+            </div>
+            <div class="card-content">
+                <div class="desc">
+                    捕捉不同市场/交易对之间的价差，低买高卖实现无风险或统计套利。
+                </div>
+                <ul class="feature-list">
+                    <li><i class="fas fa-exchange-alt"></i> <strong>跨所价差</strong> : 同一币种在不同交易所存在瞬时价差，量化系统同步买入低价所+卖出高价所，赚取差价。</li>
+                    <li><i class="fas fa-chart-scatter"></i> <strong>统计套利(配对)</strong> : 利用相关性强的资产（如BTC/ETH）价差回归均值，构建对冲仓位，捕捉偏差收益。</li>
+                    <li><i class="fas fa-microchip"></i> <strong>量化执行</strong> : 实时监控价差信号，毫秒级下单，自动平衡交易量，并扣除手续费后净收益为正即触发。</li>
+                </ul>
+                <div class="formula">
+                    <i class="fas fa-chart-line"></i> 套利利润 = 价差 – 手续费 – 滑点 – 资金成本
+                </div>
+                <div class="risk-note">
+                    <i class="fas fa-gauge-high"></i> <strong>风险提示</strong> ：网络延迟、交易所提币限制、滑点以及流动性不足可能导致亏损；需完善对冲机制与备选通道。
+                </div>
+                <div>
+                    <span class="tag"><i class="fas fa-bolt"></i> 高频/中频均可</span>
+                    <span class="tag"><i class="fas fa-chart-simple"></i> 统计套利模型</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. 网格套利策略 -->
+        <div class="card card-3">
+            <div class="card-header">
+                <div class="card-icon">
+                    <i class="fas fa-table-cells-large"></i>
+                </div>
+                <div>
+                    <div class="card-title">网格套利策略</div>
+                    <div class="card-sub">Grid Trading Strategy</div>
+                </div>
+            </div>
+            <div class="card-content">
+                <div class="desc">
+                    在震荡行情中自动低买高卖，通过价格区间构建多层买卖订单，赚取波动收益。
+                </div>
+                <ul class="feature-list">
+                    <li><i class="fas fa-chart-line"></i> <strong>运作机制</strong> : 设定价格上限/下限及网格密度，价格下跌时分批买入，上涨时分批卖出，反复赚取价差。</li>
+                    <li><i class="fas fa-gear"></i> <strong>量化参数</strong> : 网格数量、等差/等比间距、单格交易量、止损线等，程序自动挂单及移单。</li>
+                    <li><i class="fas fa-chart-simple"></i> <strong>策略优势</strong> : 完全自动化，无需预测方向；适合盘整市，利用波动累积利润，年化收益可超过30%。</li>
+                </ul>
+                <div class="formula">
+                    <i class="fas fa-grid-2"></i> 单网格利润 = (卖出价 – 买入价) × 数量 – 手续费
+                </div>
+                <div class="risk-note">
+                    <i class="fas fa-chart-line"></i> <strong>风险提示</strong> ：单边趋势行情会产生“穿网”风险（持续上涨踏空或下跌被套），需设置趋势过滤或止损/仓位管理。
+                </div>
+                <div>
+                    <span class="tag"><i class="fas fa-chart-waveform"></i> 震荡市利器</span>
+                    <span class="tag"><i class="fas fa-chart-gantt"></i> 自适应间距</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 附加说明段落：对比与量化系统建议 -->
+    <div style="background: rgba(255,255,240,0.5); border-radius: 2rem; padding: 1.5rem 2rem; margin: 1.2rem 0 0.5rem; backdrop-filter: blur(4px);">
+        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: space-between;">
+            <div>
+                <i class="fas fa-chart-pie" style="font-size: 1.8rem; color: #2c6e9e;"></i>
+                <span style="font-weight: 700; font-size: 1.1rem;"> 多策略组合 ｜ 量化工程落地</span>
+            </div>
+            <div style="font-size: 0.9rem; color: #2c3e4e;">
+                <i class="fas fa-check-circle" style="color: #2b9348;"></i> 回测框架 &nbsp;&nbsp;
+                <i class="fas fa-shield-alt" style="color: #2b6e9e;"></i> 风险管理 &nbsp;&nbsp;
+                <i class="fas fa-database"></i> 实时监控
+            </div>
+        </div>
+        <p style="margin-top: 1rem; font-size: 0.92rem; line-height: 1.5; color: #2a4d6c;">
+            资金费率套利适用于高资金费率环境，价差套利依赖低延迟与流动性，网格套利则需要适配市场波动率。
+            成熟的量化套利系统通常组合三种策略，通过统一风控模块动态分配资金，并利用API实现7×24小时自动运行，显著提高夏普比率。
+            所有策略在实盘前必须经过充分的历史回测与模拟盘验证，并根据市场状态调整参数。
+        </p>
+    </div>
+
+    <footer>
+        <div style="margin-bottom: 0.8rem;">
+            <i class="fab fa-github"></i> <strong>GitHub Pages 部署指南</strong>   |  
+            将本页面保存为 <code style="background:#eef2f5; padding:0.2rem 0.5rem; border-radius: 8px;">index.html</code>，
+            上传至任意公开仓库 → 开启 <strong>GitHub Pages</strong> (Settings → Pages → branch: main) 即可访问。
+        </div>
+        <div>
+            📊 量化套利 · 仅供策略研究 | 投资有风险，决策需谨慎
+        </div>
+        <div style="margin-top: 0.6rem; font-size: 0.75rem;">
+            <i class="fas fa-chart-line"></i> 持续更新：资金费率监控 / 价差扫描 / 网格参数优化
+        </div>
+    </footer>
+</div>
+
+<!-- 可选细小装饰动画效果，纯视觉无侵入 -->
+</body>
+</html>
